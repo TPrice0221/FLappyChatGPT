@@ -1,1 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Producer's Gauntlet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+      font-family: Arial, sans-serif;
+      color: white;
+      text-align: center;
+    }
+
+    canvas {
+      display: block;
+      margin: auto;
+      background: linear-gradient(#0a0a0a, #1a1a1a);
+    }
+
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 0;
+      right: 0;
+      font-size: 18px;
+    }
+
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 15px 30px;
+      font-size: 20px;
+      background: orange;
+      border: none;
+      cursor: pointer;
+      border-radius: 10px;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      font-size: 22px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="ui">
+  Score: <span id="score">0</span> |
+  VSTs: <span id="vst">0</span>/<span id="totalVst">5</span>
+</div>
+
+<button id="startBtn">Start</button>
+<div id="gameOver"></div>
+
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let gameRunning = false;
+let gravity = 0.5;
+let lift = -10;
+
+let player = {
+  x: 80,
+  y: 300,
+  radius: 15,
+  velocity: 0
+};
+
+let pipes = [];
+let vsts = [];
+
+let score = 0;
+let vstCount = 0;
+let totalVst = 5;
+
+document.getElementById("totalVst").innerText = totalVst;
+
+function startGame() {
+  gameRunning = true;
+  document.getElementById("startBtn").style.display = "none";
+  document.getElementById("gameOver").style.display = "none";
+
+  pipes = [];
+  vsts = [];
+  score = 0;
+  vstCount = 0;
+
+  player.y = 300;
+  player.velocity = 0;
+
+  loop();
+}
+
+document.getElementById("startBtn").onclick = startGame;
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") {
+    player.velocity = lift;
+  }
+});
+
+function spawnPipe() {
+  let gap = 140;
+  let top = Math.random() * 300 + 50;
+
+  pipes.push({
+    x: canvas.width,
+    width: 60,
+    top: top,
+    bottom: canvas.height - (top + gap)
+  });
+}
+
+function spawnVST() {
+  vsts.push({
+    x: canvas.width,
+    y: Math.random() * (canvas.height - 100) + 50,
+    size: 15,
+    collected: false
+  });
+}
+
+function update() {
+  player.velocity += gravity;
+  player.y += player.velocity;
+
+  if (player.y > canvas.height || player.y < 0) {
+    endGame("CLIPPING ERROR");
+  }
+
+  pipes.forEach(pipe => {
+    pipe.x -= 2;
+
+    if (
+      player.x + player.radius > pipe.x &&
+      player.x - player.radius < pipe.x + pipe.width &&
+      (player.y - player.radius < pipe.top ||
+       player.y + player.radius > canvas.height - pipe.bottom)
+    ) {
+      endGame("BUFFER OVERFLOW");
+    }
+
+    if (!pipe.passed && pipe.x + pipe.width < player.x) {
+      score++;
+      pipe.passed = true;
+    }
+  });
+
+  vsts.forEach(vst => {
+    vst.x -= 2;
+
+    let dx = player.x - vst.x;
+    let dy = player.y - vst.y;
+    let dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < player.radius + vst.size && !vst.collected) {
+      vst.collected = true;
+      vstCount++;
+      score += 1000;
+    }
+  });
+
+  pipes = pipes.filter(p => p.x > -60);
+  vsts = vsts.filter(v => v.x > -20);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Player
+  ctx.fillStyle = "orange";
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pipes
+  ctx.fillStyle = "red";
+  pipes.forEach(pipe => {
+    ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+    ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipe.width, pipe.bottom);
+  });
+
+  // VSTs
+  ctx.fillStyle = "gold";
+  vsts.forEach(vst => {
+    if (!vst.collected) {
+      ctx.beginPath();
+      ctx.arc(vst.x, vst.y, vst.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  document.getElementById("score").innerText = score;
+  document.getElementById("vst").innerText = vstCount;
+}
+
+function loop() {
+  if (!gameRunning) return;
+
+  update();
+  draw();
+
+  if (Math.random() < 0.02) spawnPipe();
+  if (Math.random() < 0.01) spawnVST();
+
+  requestAnimationFrame(loop);
+}
+
+function endGame(reason) {
+  gameRunning = false;
+
+  let message = `
+    ${reason}<br>
+    Final Score: ${score}<br>
+  `;
+
+  if (vstCount === totalVst) {
+    message += "<br>🎉 10% DISCOUNT UNLOCKED 🎉";
+  }
+
+  document.getElementById("gameOver").innerHTML = message;
+  document.getElementById("gameOver").style.display = "block";
+  document.getElementById("startBtn").style.display = "block";
+}
+</script>
+
+</body>
+</html>
